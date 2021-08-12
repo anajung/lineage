@@ -20,8 +20,8 @@ process pangolin {
 }
 
 process nextClade {
-    //container 'neherlab/nextclade:0.14.4-stretch'
-    container 'anajung/nextclade'
+    container 'neherlab/nextclade:0.14.4-stretch'
+    //container 'anajung/nextclade'
     cpus 1
     memory '1 GB'
     publishDir params.outdir, mode: 'copy'
