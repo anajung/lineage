@@ -1,6 +1,17 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
+def helpMessage() {
+  log.info"""
+    Usage:
+    The typical command for running the pipeline is as follows:
+    nextflow run anajung/CZI_addon --combinedfa 'combined.fa' --vcf 'sample-variants/*.vcf.gz' --outdir './out'
+    Mandatory arguments:
+    --combinedfa                Path to combined FASTA, must be in quotes
+    --outdir                    Specify path to output directory
+    """.stripIndent()
+}
+
 process pangolin {
     container 'staphb/pangolin'
     cpus 1
@@ -20,21 +31,21 @@ process pangolin {
 }
 
 process nextClade {
-    container 'neherlab/nextclade:0.14.4-stretch'
-    //container 'anajung/nextclade'
-    cpus 1
-    memory '1 GB'
-    publishDir params.outdir, mode: 'copy'
+    container 'nextstrain/nextclade'
+    cpus 4
+    memory '6 GB'
+    publishDir params.outdir
 
     input:
     path combined_fa
+    path nextclade_data
 
     output:
     path '*nextclade_lineage.tsv'
 
     shell:
     '''
-    nextclade -i !{combined_fa} -t nextclade_lineage.tsv
+    nextclade --input-fasta !{combined_fa} --input-root-seq NC_045512.2.fasta --input-tree tree.json --input-qc-config qc.json --input-gene-map genemap.gff --output-tsv nextclade_lineage.tsv
     '''
 }
 
@@ -49,9 +60,8 @@ process joinLineage {
     path nextclade_lineage
 
     output:
-    path '*.csv'
-    //path 'joined_lineage.csv'
-    //path 'filtered_joined_lineage.csv'
+    path 'joined_lineage.csv'
+    path 'filtered_joined_lineage.csv'
 
     shell:
     template 'join_lineage.py'
@@ -95,9 +105,10 @@ process augur {
 workflow {
     combinedfadata=channel.fromPath( params.combinedfa ).collect()
     pangolin(combinedfadata)
-    //nextClade(combinedfadata)
-    nextcladedata=channel.fromPath( params.nextclade ).collect()
-    joinLineage(pangolin.out, nextcladedata)
+    nextclade_data=channel.fromPath('/Users/anajung/Documents/HandleyLab/scripts/CZI_addon/nextclade_data/*').collect()
+    nextClade(combinedfadata, nextclade_data)
+    //nextcladedata=channel.fromPath( params.nextclade )
+    joinLineage(pangolin.out, nextClade.out)
     filter_fa(combinedfadata)
     augur(filter_fa.out)
 }
